@@ -50,7 +50,7 @@ class _TestAppState extends State<TestApp> {
         body: Center(
           child: Text(
             '$_counter',
-            style: Theme.of(context).textTheme.headline4,
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
         ),
         floatingActionButton: FloatingActionButton(
