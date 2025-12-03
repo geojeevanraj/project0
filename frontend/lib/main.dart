@@ -1,12 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'screens/home_screen.dart';
+import 'screens/task_screen.dart';
+import 'screens/reminder_screen.dart';
+import 'screens/schedule_screen.dart';
+import 'screens/completed_screen.dart';
+import 'screens/add_task_screen.dart';
+import 'models/task.dart';
 
-void main() {
-  runApp(const LiquidGlassApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Hive
+  await Hive.initFlutter();
+  
+  // Register adapters
+  Hive.registerAdapter(TaskAdapter());
+  
+  // Open boxes
+  await Hive.openBox<Task>('tasks');
+  
+  runApp(const MyApp());
 }
 
-class LiquidGlassApp extends StatelessWidget {
-  const LiquidGlassApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +49,16 @@ class LiquidGlassApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.white70),
         ),
       ),
+      // Set the initial route
       home: const HomeScreen(),
+      // Define named routes for navigation
+      routes: {
+        '/tasks': (context) => const TaskScreen(),
+        '/reminders': (context) => const ReminderScreen(),
+        '/schedule': (context) => const ScheduleScreen(),
+        '/completed': (context) => const CompletedScreen(),
+        '/add-task': (context) => const AddTaskScreen(),
+      },
     );
   }
 }

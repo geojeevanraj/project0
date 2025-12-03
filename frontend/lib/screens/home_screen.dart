@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../models/task.dart';
+import '../services/task_service.dart';
 
 // Entry point to run the app standalone for preview purposes
 void main() {
@@ -45,59 +48,68 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final Size size = MediaQuery.of(context).size;
+    final taskService = TaskService();
 
     return Scaffold(
       // Important: Transparent scaffold to show the background blobs
       backgroundColor: Colors.transparent, 
       extendBody: true,
-      body: Stack(
-        children: [
-          // 1. Dynamic Background (Gradients & Blobs)
-          _buildBackground(isDark, size),
+      body: ValueListenableBuilder(
+        valueListenable: Hive.box<Task>('tasks').listenable(),
+        builder: (context, Box<Task> box, _) {
+          final pendingCount = taskService.getPendingCount();
+          final inProgressCount = taskService.getInProgressCount();
+          final completedCount = taskService.getCompletedCount();
+          final todayTasksCount = taskService.getTodayTasks().where((t) => !t.isCompleted).length;
 
-          // 2. Main Content
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // --- Custom AppBar ---
-                  _buildCustomAppBar(isDark),
-                  const SizedBox(height: 24),
+          return Stack(
+            children: [
+              // 1. Dynamic Background (Gradients & Blobs)
+              _buildBackground(isDark, size),
 
-                  // --- Greeting ---
-                  Text(
-                    "Good Morning,\nAlex",
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // --- Summary Cards ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // 2. Main Content
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSummaryCard("Pending", "12", Colors.orange, isDark, size.width),
-                      _buildSummaryCard("In Progress", "5", Colors.blue, isDark, size.width),
-                      _buildSummaryCard("Done", "28", Colors.green, isDark, size.width),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                      // --- Custom AppBar ---
+                      _buildCustomAppBar(isDark),
+                      const SizedBox(height: 24),
 
-                  // --- AI Suggestion Card ---
-                  _buildAISuggestionCard(isDark),
-                  const SizedBox(height: 24),
+                      // --- Greeting ---
+                      Text(
+                        "Good Morning,\nAlex",
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                          color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
-                  // --- Navigation Tiles ---
-                  Text(
-                    "Overview",
-                    style: TextStyle(
+                      // --- Summary Cards ---
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSummaryCard("Pending", "$pendingCount", Colors.orange, isDark, size.width),
+                          _buildSummaryCard("In Progress", "$inProgressCount", Colors.blue, isDark, size.width),
+                          _buildSummaryCard("Done", "$completedCount", Colors.green, isDark, size.width),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // --- AI Suggestion Card ---
+                      _buildAISuggestionCard(isDark),
+                      const SizedBox(height: 24),
+
+                      // --- Navigation Tiles ---
+                      Text(
+                        "Overview",
+                        style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white70 : Colors.black54,
@@ -114,10 +126,10 @@ class HomeScreen extends StatelessWidget {
                     crossAxisSpacing: 16,
                     childAspectRatio: 1.1,
                     children: [
-                      _buildNavTile(Icons.task_alt_rounded, "Tasks", "8 due today", isDark),
-                      _buildNavTile(Icons.notifications_none_rounded, "Reminders", "No new alerts", isDark),
-                      _buildNavTile(Icons.calendar_today_rounded, "Schedule", "3 meetings", isDark),
-                      _buildNavTile(Icons.check_circle_outline_rounded, "Completed", "History", isDark),
+                      _buildNavTile(context, Icons.task_alt_rounded, "Tasks", "$todayTasksCount due today", isDark, '/tasks'),
+                      _buildNavTile(context, Icons.notifications_none_rounded, "Reminders", "No new alerts", isDark, '/reminders'),
+                      _buildNavTile(context, Icons.calendar_today_rounded, "Schedule", "3 meetings", isDark, '/schedule'),
+                      _buildNavTile(context, Icons.check_circle_outline_rounded, "Completed", "$completedCount items", isDark, '/completed'),
                     ],
                   ),
                   
@@ -125,19 +137,11 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 100),
                 ],
               ),
+              ),
             ),
-          ),
-
-          // 3. Floating Voice Button (Bottom Center)
-          Positioned(
-            bottom: 30,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _buildLiquidVoiceButton(isDark),
-            ),
-          ),
-        ],
+          ],
+        );
+        },
       ),
     );
   }
@@ -321,84 +325,42 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNavTile(IconData icon, String title, String subtitle, bool isDark) {
-    return GlassContainer(
-      padding: const EdgeInsets.all(16),
-      isDark: isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(icon, size: 32, color: isDark ? Colors.white : Colors.black87),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black87,
+  Widget _buildNavTile(BuildContext context, IconData icon, String title, String subtitle, bool isDark, String route) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.pushNamed(context, route);
+      },
+      child: GlassContainer(
+        padding: const EdgeInsets.all(16),
+        isDark: isDark,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(icon, size: 32, color: isDark ? Colors.white : Colors.black87),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? Colors.white54 : Colors.black45,
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white54 : Colors.black45,
+                  ),
                 ),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLiquidVoiceButton(bool isDark) {
-    return Container(
-      height: 70,
-      width: 70,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF00C6FF),
-            const Color(0xFF0072FF),
+              ],
+            )
           ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0072FF).withOpacity(0.4),
-            blurRadius: 15,
-            spreadRadius: 2,
-            offset: const Offset(0, 8),
-          ),
-          // Inner highlight for "liquid" look
-          BoxShadow(
-            color: Colors.white.withOpacity(0.3),
-            blurRadius: 10,
-            spreadRadius: -5,
-            offset: const Offset(-5, -5),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(35),
-          onTap: () {
-            // Voice action trigger
-            HapticFeedback.mediumImpact();
-          },
-          child: const Icon(
-            Icons.mic_rounded,
-            color: Colors.white,
-            size: 32,
-          ),
         ),
       ),
     );
